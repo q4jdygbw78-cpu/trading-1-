@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbit Invest - Futuristic Trading Simulator</title>
+    <!-- Chart.js pour le rendu des graphiques -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-space: #060713;
+            --bg-panel: #0d0e22;
+            --bg-panel-light: #161936;
+            --neon-cyan: #00f3ff;
+            --neon-purple: #9d00ff;
+            --neon-green: #39ff14;
+            --neon-red: #ff0055;
+            --text-main: #f0f2fa;
+            --text-muted: #6e759f;
+            --border-glow: #1f244d;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-space);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* TOOLBAR / LOGO */
+        header {
+            background-color: var(--bg-panel);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-glow);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.05);
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-svg {
+            width: 35px;
+            height: 35px;
+            filter: drop-shadow(0 0 5px var(--neon-cyan));
+        }
+
+        .brand-name {
+            font-size: 1.3rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: linear-gradient(45deg, var(--neon-cyan), var(--neon-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* ACCOUNT BALANCE / WALLET MINI STATUS */
+        .wallet-status {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            background: var(--bg-panel-light);
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-glow);
+        }
+
+        .wallet-status span {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .wallet-status strong {
+            font-size: 1.1rem;
+            color: var(--neon-green);
+            font-family: monospace;
+            text-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
+        }
+
+        /* LAYOUT PRINCIPAL */
+        .main-container {
+            display: grid;
+            grid-template-columns: 320px 1fr 340px;
+            flex-grow: 1;
+            overflow: hidden;
+            gap: 1px;
+            background-color: var(--border-glow);
+        }
+
+        /* COLONNE GAUCHE : MARCHÉ ET COTATIONS */
+        .market-panel {
+            background-color: var(--bg-panel);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-title {
+            padding: 16px;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-glow);
+            margin: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .market-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-glow);
+        }
+
+        .market-tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.2s;
+            background: transparent;
+            border: none;
+        }
+
+        .market-tab.active {
+            color: var(--neon-cyan);
+            background-color: rgba(0, 243, 255, 0.05);
+            font-weight: bold;
+            box-shadow: inset 0 -2px 0 var(--neon-cyan);
+        }
+
+        .ticker-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .ticker-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(31, 36, 77, 0.4);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .ticker-item:hover, .ticker-item.active {
+            background-color: var(--bg-panel-light);
+        }
+
+        .ticker-name { font-weight: 600; font-size: 0.95rem; }
+        .ticker-full { font-size: 0.75rem; color: var(--text-muted); display: block; }
+        .ticker-price { font-family: monospace; font-size: 0.95rem; text-align: right; }
+        .ticker-change { font-size: 0.75rem; text-align: right; }
+        
+        .up { color: var(--neon-green); }
+        .down { color: var(--neon-red); }
+
+        /* ZONE CENTRALE : GRAPHIC & TRADING TOOLS */
+        .center-panel {
+            background-color: var(--bg-space);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .chart-header {
+            padding: 16px;
+            background-color: var(--bg-panel);
+            border-bottom: 1px solid var(--border-glow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* BARRE D'OUTILS D'ANALYSE */
+        .analysis-tools {
+            display: flex;
+            gap: 8px;
+            background-color: var(--bg-panel-light);
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-glow);
+        }
+
+        .tool-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-main);
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+
+        .tool-btn:hover {
+            border-color: var(--neon-cyan);
+            background: rgba(0, 243, 255, 0.1);
+        }
+
+        .tool-btn.active {
+            background-color: var(--neon-cyan);
+            color: var(--bg-space);
+            font-weight: bold;
+        }
+
+        .chart-view-wrapper {
+            flex-grow: 1;
+            position: relative;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* Canvas interactif pour le dessin au-dessus du graphique */
+        #drawingCanvas {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: calc(100% - 40px);
+            height: calc(100% - 40px);
+            z-index: 10;
+            cursor: crosshair;
+            pointer-events: none; /* Activé via JS uniquement si un outil est sélectionné */
+        }
+
+        #mainChart {
+            width: 100% !important;
+            height: 100% !important;
+            z-index: 5;
+        }
+
+        /* FORMULAIRE D'ORDRE TRADING CONTENU EN BAS DU GRAPH */
+        .order-zone {
+            background-color: var(--bg-panel);
+            border-top: 1px solid var(--border-glow);
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-group label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-wrapper input {
+            width: 100%;
+            background-color: var(--bg-panel-light);
+            border: 1px solid var(--border-glow);
+            padding: 12px;
+            border-radius: 6px;
+            color: var(--text-main);
+            font-size: 1rem;
+            font-family: monospace;
+            outline: none;
+        }
+
+        .input-wrapper input:focus {
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+        }
+
+        .trade-actions {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .trade-btn {
+            flex: 1;
+            border: none;
+            padding: 14px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .trade-btn.buy {
+            background-color: var(--neon-green);
+            color: var(--bg-space);
+            box-shadow: 0 0 15px rgba(57, 255, 20, 0.3);
+        }
+
+        .trade-btn.sell {
+            background-color: var(--neon-red);
+            color: var(--text-main);
+            box-shadow: 0 0 15px rgba(255, 0, 85, 0.3);
+        }
+
+        .trade-btn:hover {
+            filter: brightness(1.2);
+            transform: translateY(-1px);
+        }
+
+        /* COLONNE DROITE : PORTFEUILLE INTEGRÉ & COMPTES */
+        .right-panel {
+            background-color: var(--bg-panel);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .wallet-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .wallet-list {
+            padding: 16px;
+            overflow-y: auto;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin: 0;
+            list-style: none;
+        }
+
+        .wallet-item {
+            background-color: var(--bg-panel-light);
+            border: 1px solid var(--border-glow);
+            padding: 14px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .wallet-item-name { font-weight: bold; }
+        .wallet-item-qty { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+        .wallet-item-value { font-family: monospace; text-align: right; font-weight: 600; }
+
+        /* NOTIFICATIONS FLASH DANS L'APPLICATON */
+        #toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: var(--neon-purple);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            box-shadow: 0 0 20px rgba(157, 0, 255, 0.5);
+            font-size: 0.85rem;
+            z-index: 1000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ENTÊTE DE L'APPLICATION -->
+    <header>
+        <div class="logo-container">
+            <!-- LOGO FUTURISTE ORBIT INVEST -->
+            <svg class="logo-svg" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="10" fill="#9d00ff" />
+                <ellipse cx="50" cy="50" rx="40" ry="15" fill="none" stroke="#00f3ff" stroke-width="3" transform="rotate(-30 50 50)" stroke-dasharray="180 50" />
+                <circle cx="20" cy="33" r="4" fill="#39ff14" />
+            </svg>
+            <div class="brand-name">Orbit Invest</div>
+        </div>
+
+        <div class="wallet-status">
+            <span>Solde USD de test :</span>
+            <strong id="usdBalance">10 000.00 $</strong>
+        </div>
+    </header>
+
+    <!-- INTERFACE PRINCIPALE -->
+    <div class="main-container">
+        
+        <!-- PANNEAU GAUCHE : LISTE DES MARCHÉS INTERACTIFS -->
+        <div class="market-panel">
+            <h2 class="panel-title">Marchés Mondiaux Live</h2>
+            <div class="market-tabs">
+                <button class="market-tab active" onclick="switchCategory('crypto')">Crypto</button>
+                <button class="market-tab" onclick="switchCategory('stock')">Bourse</button>
+                <button class="market-tab" onclick="switchCategory('meme')">Meme Coins</button>
+            </div>
+            <ul class="ticker-list" id="tickerContainer">
+                <!-- Rempli en JS -->
+            </ul>
+        </div>
+
+        <!-- ACCUEIL CENTRAL : GRAPH INTERACTIF ET PASSEUR D'ORDRE -->
+        <div class="center-panel">
+            <div class="chart-header">
+                <div>
+                    <h2 id="activeSymbolName" style="margin: 0; font-size: 1.2rem; font-weight: bold; letter-spacing: 0.5px;">BTC / USD</h2>
+                    <span id="activeFullName" style="font-size: 0.8rem; color: var(--text-muted);">Bitcoin Core Asset</span>
+                </div>
+
+                <!-- OUTILS DE DESSIN TECHNIQUES -->
+                <div class="analysis-tools">
+                    <button class="tool-btn" id="tool-trend" onclick="toggleDrawingTool('trend')">📈 Ligne Tendance</button>
+                    <button class="tool-btn" id="tool-horiz" onclick="toggleDrawingTool('horizontal')">➖ Support / Résistance</button>
+                    <button class="tool-btn" onclick="clearDrawings()">🗑️ Effacer dessins</button>
+                </div>
+            </div>
+
+            <!-- CONTENEUR DU GRAPHIQUE AVEC CANVAS DE DESSIN SUPERPOSÉ -->
+            <div class="chart-view-wrapper">
+                <canvas id="drawingCanvas"></canvas>
+                <canvas id="mainChart"></canvas>
+            </div>
+
+            <!-- ZONE DE TRADING SIMULÉ -->
+            <div class="order-zone">
+                <div class="input-group">
+                    <label>Quantité à trader</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="tradeQuantity" value="0.1" step="any" min="0.0001">
+                    </div>
+                </div>
+                <div class="trade-actions">
+                    <button class="trade-btn buy" onclick="executeTrade('BUY')">Acheter (Long)</button>
+                    <button class="trade-btn sell" onclick="executeTrade('SELL')">Vendre (Short)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PANNEAU DROIT : WALLET INTÉGRÉ -->
+        <div class="right-panel">
+            <h2 class="panel-title">Votre Portefeuille Crypto / Bourse</h2>
+            <div class="wallet-container">
+                <ul class="wallet-list" id="walletContainer">
+                    <!-- Rempli en JS -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTIFICATION POPUP -->
+    <div id="toast"></div>
+
+    <script>
+        // BASE DE DONNÉES LOCALE DES ACTIFS SIMULÉS
+        const assetDatabase = {
+            crypto: [
+                { symbol: "BTC", name: "Bitcoin", price: 64250, change: 1.4, history: [63100, 62900, 63400, 63900, 64100, 64250] },
+                { symbol: "ETH", name: "Ethereum", price: 3450, change: -0.8, history: [3520, 3510, 3490, 3460, 3440, 3450] },
+                { symbol: "SOL", name: "Solana", price: 142.20, change: 5.6, history: [131, 134, 136, 139, 140, 142.20] }
+            ],
+            stock: [
+                { symbol: "NVDA", name: "NVIDIA Corp.", price: 124.50, change: 3.2, history: [118, 120, 121, 122, 123, 124.50] },
+                { symbol: "AAPL", name: "Apple Inc.", price: 212.80, change: -0.3, history: [214, 213.5, 213, 212, 212.5, 212.80] },
+                { symbol: "TSLA", name: "Tesla Inc.", price: 179.10, change: -2.1, history: [185, 183, 181, 178, 177, 179.10] }
+            ],
+            meme: [
+                { symbol: "DOGE", name: "Dogecoin", price: 0.124, change: 12.4, history: [0.101, 0.105, 0.110, 0.115, 0.118, 0.124] },
+                { symbol: "SHIB", name: "Shiba Inu", price: 0.000018, change: 8.9, history: [0.000016, 0.000016, 0.000017, 0.000017, 0.000018, 0.000018] },
+                { symbol: "PEPE", name: "Pepe Coin", price: 0.000011, change: -4.2, history: [0.000012, 0.000012, 0.000012, 0.000011, 0.000011, 0.000011] }
+            ]
+        };
+
+        // ÉTAT DU WALLET UTILSATEUR
+        let userWallet = {
+            USD: 10000.00,
+            BTC: 0.05,
+            NVDA: 5,
+            DOGE: 2500
+        };
+
+        let currentCategory = 'crypto';
+        let currentAsset = assetDatabase.crypto[0];
+        let chartInstance = null;
+
+        // ÉTAT DES OUTILS DE DESSIN
+        let activeTool = null; // 'trend' ou 'horizontal'
+        let isDrawing = false;
+        let drawStart = null;
+        let drawings = []; // Stockage des lignes dessinées
+
+        window.onload = function() {
+            initChart();
+            renderTickers();
+            renderWallet();
+            initDrawingEngine();
+            
+            // Simulation d'un flux de ticks boursiers en direct toutes les 2.5 secondes
+            setInterval(simulateLiveMarket, 2500);
+        };
+
+        // INITIALISATION DU GRAPHIQUE FUTURISTE
+        function initChart() {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            
+            // Dégradé sous la courbe
+            let glowGradiant = ctx.createLinearGradient(0, 0, 0, 400);
+            glowGradiant.addColorStop(0, 'rgba(0, 243, 255, 0.25)');
+            glowGradiant.addColorStop(1, 'rgba(6, 7, 19, 0)');
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ["10:00", "11:00", "12:00", "13:00", "14:00", "En direct"],
+                    datasets: [{
+                        label: currentAsset.symbol,
+                        data: [...currentAsset.history],
+                        borderColor: '#00f3ff',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#9d00ff',
+                        pointHoverRadius: 7,
+                        backgroundColor: glowGradiant,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(31, 36, 77, 0.3)' }, ticks: { color: '#6e759f' } },
+                        y: { grid: { color: 'rgba(31, 36, 77, 0.3)' }, ticks: { color: '#6e759f' } }
+                    }
+                }
+            });
+        }
+
+        // AFFICHAGE DES TICKERS PAR CATÉGORIE
+        function renderTickers() {
+            const container = document.getElementById('tickerContainer');
+            container.innerHTML = '';
+            
+            assetDatabase[currentCategory].forEach(asset => {
+                const isSelected = asset.symbol === currentAsset.symbol ? 'active' : '';
+                const changeClass = asset.change >= 0 ? 'up' : 'down';
+                const sign = asset.change >= 0 ? '+' : '';
+                
+                const li = document.createElement('li');
+                li.className = `ticker-item ${isSelected}`;
+                li.onclick = () => selectAsset(asset);
+                li.innerHTML = `
+                    <div>
+                        <span class="ticker-name">${asset.symbol}</span>
+                        <span class="ticker-full">${asset.name}</span>
+                    </div>
+                    <div>
+                        <div class="ticker-price">${formatPrice(asset.price)}</div>
+                        <div class="ticker-change ${changeClass}">${sign}${asset.change}%</div>
+                    </div>
+                `;
+                container.appendChild(li);
+            });
+        }
+
+        // METTRE À JOUR LE PORTFEUILLE VISUELLEMENT
+        function renderWallet() {
+            document.getElementById('usdBalance').innerText = `${userWallet.USD.toLocaleString('fr-FR', {minimumFractionDigits: 2})} $`;
+            const container = document.getElementById('walletContainer');
+            container.innerHTML = '';
+
+            for (const [symbol, qty] of Object.entries(userWallet)) {
+                if(symbol === 'USD' || qty <= 0) continue;
+                
+                // Chercher le prix actuel
+                let livePrice = 0;
+                let currentItem = null;
+                Object.values(assetDatabase).flat().forEach(a => {
+                    if(a.symbol === symbol) livePrice = a.price;
+                });
+
+                const totalVal = qty * livePrice;
+
+                const li = document.createElement('li');
+                li.className = 'wallet-item';
+                li.innerHTML = `
+                    <div>
+                        <span class="wallet-item-name">${symbol}</span>
+                        <div class="wallet-item-qty">${qty} unités</div>
+                    </div>
+                    <div class="wallet-item-value">
+                        ${formatPrice(totalVal)}
+                    </div>
+                `;
+                container.appendChild(li);
+            }
+        }
+
+        function switchCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.market-tab').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            currentAsset = assetDatabase[cat][0];
+            selectAsset(currentAsset);
+        }
+
+        function selectAsset(asset) {
+            currentAsset = asset;
+            document.getElementById('activeSymbolName').innerText = `${asset.symbol} / USD`;
+            document.getElementById('activeFullName').innerText = `${asset.name} Asset`;
+            
+            chartInstance.data.datasets[0].label = asset.symbol;
+            chartInstance.data.datasets[0].data = [...asset.history];
+            chartInstance.update();
+            
+            renderTickers();
+            clearDrawings(); // Efface les lignes de tendance de l'ancien actif pour propreté
+        }
+
+        // SIMULATION DE FLUX LIVE (TICKER ENGINE)
+        function simulateLiveMarket() {
+            Object.values(assetDatabase).flat().forEach(asset => {
+                const pct = (Math.random() * 2 - 1) / 100; // fluctuation max +/- 1%
+                asset.price += asset.price * pct;
+                asset.change = parseFloat((asset.change + pct * 100).toFixed(2));
+                
+                // Mettre à jour l'historique du graphique actif en temps réel
+                if(asset.symbol === currentAsset.symbol) {
+                    chartInstance.data.datasets[0].data.shift();
+                    chartInstance.data.datasets[0].data.push(asset.price);
+                    chartInstance.update('none'); // Update sans re-render lourd d'animation
+                }
+            });
+            renderTickers();
+            renderWallet();
+        }
+
+        // EXÉCUTION D'UN ORDRE DE TRADING D'ENTRAINEMENT
+        function executeTrade(type) {
+            const qty = parseFloat(document.getElementById('tradeQuantity').value);
+            if(isNaN(qty) || qty <= 0) {
+                showToast("Quantité invalide");
+                return;
+            }
+
+            const totalCost = qty * currentAsset.price;
+
+            if(type === 'BUY') {
+                if(userWallet.USD >= totalCost) {
+                    userWallet.USD -= totalCost;
+                    userWallet[currentAsset.symbol] = (userWallet[currentAsset.symbol] || 0) + qty;
+                    showToast(`Achat réussi : ${qty} ${currentAsset.symbol}`);
+                } else {
+                    showToast("Fonds USD insuffisants pour cet entraînement !");
+                }
+            } else if(type === 'SELL') {
+                if(userWallet[currentAsset.symbol] && userWallet[currentAsset.symbol] >= qty) {
+                    userWallet.USD += totalCost;
+                    userWallet[currentAsset.symbol] -= qty;
+                    showToast(`Vente réussie : ${qty} ${currentAsset.symbol}`);
+                } else {
+                    showToast(`Vous n'avez pas assez de ${currentAsset.symbol} à vendre !`);
+                }
+            }
+            renderWallet();
+        }
+
+        // GESTIONNAIRE D'OUTILS DE DESSIN ANALYTIQUE (CANVAS SEMI-INTERACTIF)
+        function initDrawingEngine() {
+            const canvas = document.getElementById('drawingCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Ajustement de la taille du canvas de dessin
+            function resizeCanvas() {
+                canvas.width = canvas.parentElement.clientWidth - 40;
+                canvas.height = canvas.parentElement.clientHeight - 40;
+                redrawCanvas();
+            }
+            
+            window.addEventListener('resize', resizeCanvas);
+            setTimeout(resizeCanvas, 300); // Trigger initial
+
+            canvas.addEventListener('mousedown', (e) => {
+                if(!activeTool) return;
+                isDrawing = true;
+                const rect = canvas.getBoundingClientRect();
+                drawStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if(!isDrawing || !activeTool) return;
+                const rect = canvas.getBoundingClientRect();
+                const currentPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                
+                redrawCanvas();
+                
+                // Dessiner la ligne temporaire d'analyse en cours de tracé
+                ctx.strokeStyle = activeTool === 'trend' ? '#00f3ff' : '#9d00ff';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                
+                if(activeTool === 'trend') {
+                    ctx.moveTo(drawStart.x, drawStart.y);
+                    ctx.lineTo(currentPos.x, currentPos.y);
+                } else if(activeTool === 'horizontal') {
+                    ctx.moveTo(0, drawStart.y);
+                    ctx.lineTo(canvas.width, drawStart.y);
+                }
+                ctx.stroke();
+            });
+
+            canvas.addEventListener('mouseup', (e) => {
+                if(!isDrawing) return;
+                isDrawing = false;
+                const rect = canvas.getBoundingClientRect();
+                const drawEnd = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                
+                // Enregistrer le dessin fini
+                drawings.push({
+                    type: activeTool,
+                    start: drawStart,
+                    end: drawEnd
+                });
+                
+                redrawCanvas();
+            });
+        }
+
+        function toggleDrawingTool(tool) {
+            const canvas = document.getElementById('drawingCanvas');
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+
+            if(activeTool === tool) {
+                activeTool = null;
+                canvas.style.pointerEvents = 'none'; // Rend la main au graphique dessous
+            } else {
+                activeTool = tool;
+                canvas.style.pointerEvents = 'all';  // Capture les clics pour dessiner
+                document.getElementById(`tool-${tool}`).classList.add('active');
+                showToast(`Outil activé. Cliquez et glissez sur le graphique.`);
+            }
+        }
+
+        function redrawCanvas() {
+            const canvas = document.getElementById('drawingCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.setLineDash([]); // Reset styles de pointillés
+
+            drawings.forEach(d => {
+                ctx.strokeStyle = d.type === 'trend' ? '#00f3ff' : '#9d00ff';
+                ctx.shadowColor = ctx.strokeStyle;
+                ctx.shadowBlur = 6;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                if(d.type === 'trend') {
+                    ctx.moveTo(d.start.x, d.start.y);
+                    ctx.lineTo(d.end.x, d.end.y);
+                } else if(d.type === 'horizontal') {
+                    ctx.moveTo(0, d.start.y);
+                    ctx.lineTo(canvas.width, d.start.y);
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0; // Reset lueur pour ne pas impacter les autres
+            });
+        }
+
+        function clearDrawings() {
+            drawings = [];
+            redrawCanvas();
+            showToast("Analyses graphiques nettoyées.");
+        }
+
+        // HELPERS UTILITAIRES
+        function formatPrice(val) {
+            if(val < 0.01) return `${val.toFixed(6)} $`;
+            return `${val.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} $`;
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+        }
+    </script>
+</body>
+</html>
